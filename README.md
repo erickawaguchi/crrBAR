@@ -26,13 +26,13 @@ Getting Started
 3. To perform L_0-penalized regression, use the following commands in R:
   ```r
   library(crrBAR)
+  #Assume cause of interest of fstatus = 1.
   fit <- crrBAR(ftime, fstatus, X, failcode = 1, cencode = 0, lambda = log(sum(fstatus == 1)) / 2, xi = 1 / 2)
   fit$coef #Extract coefficients
   ```
   
 Examples
 ========
- * Cox's Proportional Hazards Model
  ```r
 set.seed(10)
 ftime <- rexp(200)
