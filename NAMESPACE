@@ -3,6 +3,7 @@
 export(createLambdaGrid)
 export(crrBAR)
 export(crrHARD)
+export(gcrrBAR)
 export(getLogLikelihood)
 export(simulateTwoCauseFineGrayModel)
 import(cmprsk)

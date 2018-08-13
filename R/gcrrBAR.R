@@ -1,6 +1,6 @@
-#' Broken Adaptive Ridge Regression for Competing Risks Regression
+#' Group Broken Adaptive Ridge Regression for Competing Risks Regression
 #'
-#' @description Fits broken adaptive ridge regression for competing risks regression.
+#' @description Fits  groupbroken adaptive ridge regression for competing risks regression.
 #' Based on the \strong{crrp} package which performs penalized variable selection using LASSO, SCAD, and MCP.
 #' This package allows for ridge and broken adaptive ridge penalties.
 #'
@@ -9,6 +9,7 @@
 #' @param X A matrix of fixed covariates (nobs x ncovs)
 #' @param failcode Integer: code of \code{fstatus} that event type of interest (default is 1)
 #' @param cencode Integer: code of \code{fstatus} that denotes censored observations (default is 0)
+#' @param group Vector of group indicators. For efficiency, should be a vector of consecutive integers.
 #' @param lambda Numeric: BAR tuning parameter value
 #' @param xi Numeric: tuning parameter for initial ridge regression
 #' @param delta Numeric: change from 2 in ridge norm dimension
@@ -45,7 +46,8 @@
 #'
 #' Fu Z., Parikh C. and Zhou B. (2017). Penalized variable selection in competing risks regression. \emph{Lifetime Data Anal} 23:353-376.
 
-crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
+gcrrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
+                   group = 1:ncol(X),
                    lambda = 0, xi = 0, delta = 0,
                    eps = 1E-6, tol = 1E-6,
                    lam.min = ifelse(dim(X)[1] > dim(X)[2], 0.001, 0.05),
@@ -61,13 +63,6 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   if(delta < 0) stop("d must be a non-negative number.")
 
 
-  # Function to calculate generalized inverse
-  ginv = function(X, tol = sqrt(.Machine$double.eps)){
-    s = svd(X)
-    nz = s$d > tol * s$d[1]
-    if(any(nz)) s$v[,nz] %*% (t(s$u[, nz]) / s$d[nz])
-    else X*0
-  }
 
   # Sort time
   n <- length(ftime)
@@ -88,18 +83,48 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
               f = 0, rule = 2)
   uuu <- u$y
 
+  penalty.factor <- rep(1, max(group))
+  # Reorder groups, if necessary
+  xnames <- if (is.null(colnames(X))) paste("V", 1:ncol(X), sep="") else colnames(X)
+  colnames(X) <- xnames
+  if (any(order(group) != 1:length(group)) | !is.numeric(group)) {
+    reorder.groups <- TRUE
+    g <- as.numeric(group)
+    g.ord <- order(g)
+    g.ord.inv <- match(1:length(g), g.ord)
+    g <- g[g.ord]
+    X <- X[, g.ord]
+    penalty.factor <- penalty.factor(g.ord)
+  } else {
+    reorder.groups <- FALSE
+    g <- group
+    J <- max(g)
+  }
+  # g = Group ordering (ex. 1, 1, 1, 2, 2, 2, 3, 3, 3, ..., g, g)
+  # J = max group.
+
   # Standardize design matrix here
   std    <- .Call("standardize", X, PACKAGE = "crrBAR")
   XX     <- std[[1]]
   center <- std[[2]]
   scale  <- std[[3]]
   nz <- which(scale > 1e-6)
-  if (length(nz) != ncol(XX)) XX <- XX[ , nz, drop = FALSE]
+  zg <- setdiff(unique(g), unique(g[nz]))
+  XX <- XX[ , nz, drop = FALSE]
+  g  <- g[nz]
+  XX <- orthogonalize(XX, g)
+  g  <- attr(XX, "group")
+  K  <- as.numeric(table(g)) #Number of covariates per group.
+
+  if (length(zg)) {
+    J  <- J - length(zg)
+    penalty.factor <- penalty.factor[-zg]
+  }
 
   # If lambda is MISSING, create lambda path
   if(missing(lambda)) {
     lambda <- createLambdaGrid(ftime, fstatus, XX, uuu, lam.min = lam.min,
-                          nlambda = nlambda, log = log)
+                               nlambda = nlambda, log = log)
   } else {
     lambda <- lambda
   }
@@ -112,6 +137,9 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
                       penalty.factor = rep(1, p), PACKAGE = "crrBAR")
   ridgeCoef  <- ridgeFit[[1]] / scale #Divide coeff estimates by sdev
 
+
+  K1 <- as.integer(c(0, cumsum(K))) # (0, g1, g1 + g2, g1 + g2 + g3, ...)
+  btmp <- ridgeFit[[1]]
   #Results to store:
   coefMatrix           <- matrix(NA, nrow = p, ncol = length(lambda))
   colnames(coefMatrix) <- round(lambda, 3)
@@ -127,18 +155,24 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   iter   <- numeric(length(lambda))
   conv   <- logical(length(lambda))
 
-  #Enter BAR Fit here (for different lambdas) keep everything in terms of standardized coefficients
-  btmp <- ridgeFit[[1]]
+
+
+  #Enter BAR Fit here (for different lambdas)
   for(l in 1:length(lambda)) {
     lam  <- lambda[l]
     continue <- TRUE;  count <- 0; converged <- FALSE
     while(continue) {
       count  <- count + 1
+
+      #Modify BAR weight
       bar_wt <- abs(btmp)^(2 - delta)
-      barFit <- .Call("ccd_ridge", XX, as.numeric(ftime), as.integer(fstatus), uuu,
+
+
+      barFit <- .Call("ccd_gridge", XX, as.numeric(ftime), as.integer(fstatus), uuu, K1,
                       lam, eps, as.integer(max.iter),
                       penalty.factor = 1 / bar_wt, PACKAGE = "crrBAR")
-      beta0 <- barFit[[1]]
+      beta0 <- unorthogonalize(beta0, XX, g)
+      beta0 <- barFit[[1]] / scale
       beta0 <- ifelse(abs(beta0) < tol, 0, beta0)
 
       #Convergence criterion: Max absolute difference between updates is less than eps.
@@ -149,7 +183,7 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
       }
       if(converged || count >= max.iter) continue <- FALSE
     }
-    coefMatrix[, l]  <- beta0 / scale
+    coefMatrix[, l]  <- beta0
     scoreMatrix[, l] <- barFit[[5]]
     hessMatrix[, l]  <- barFit[[6]]
     logLik[l]        <- -barFit[[2]] / 2 #barFit[[2]] = deviance = -2 * ll
@@ -166,7 +200,7 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
                         ridgeCoef = ridgeCoef,
                         xi = xi,
                         call = sys.call()),
-                        class = "crrBAR")
+                   class = "crrBAR")
 
   val
 }

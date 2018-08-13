@@ -185,7 +185,7 @@ double ridge(double z, double l1, double v) {
 //    else return(s*(fabs(z)-l1)/(v+l2));
 //}
 
-// Euclidean norm
+// Euclidean norm (||x||_2 = \sqrt{\sum x_i^2})
 double norm(double *x, int p) {
   double x_norm = 0;
   for (int j = 0; j < p; j++) x_norm = x_norm + pow(x[j], 2);
@@ -247,33 +247,22 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
   //Declaration
   int n = length(t2_);
   int p = length(x_) / n;
-  //int L = length(lambda);
   double nullDev;
   SEXP res, beta, Dev, iter, residuals, score, hessian;
-  //PROTECT(beta = allocVector(REALSXP, L * p));
   PROTECT(beta = allocVector(REALSXP, p));
   double *b = REAL(beta);
-  //for (int j = 0; j < (L * p); j++) b[j] = 0;
   for (int j = 0; j < p; j++) b[j] = 0;
-  //PROTECT (score = allocVector(REALSXP, L * n));
   PROTECT (score = allocVector(REALSXP, n));
   double *s = REAL(score);
-  //for (int i = 0; i < (L * n); i++) s[i] = 0;
   for (int i = 0; i < n; i++) s[i] = 0;
-  //PROTECT (hessian = allocVector(REALSXP, L * n));
   PROTECT (hessian = allocVector(REALSXP, n));
   double *h = REAL(hessian);
-  //for (int i = 0; i < (L * n); i++) h[i] = 0;
   for (int i = 0; i <  n; i++) h[i] = 0;
   PROTECT(residuals = allocVector(REALSXP, n));
   double *r = REAL(residuals);
-  //PROTECT(Dev = allocVector(REALSXP, L));
   PROTECT(Dev = allocVector(REALSXP, 1));
-  //for (int i = 0; i < L; i++) REAL(Dev)[i] = 0;
   for (int i = 0; i < 1; i++) REAL(Dev)[i] = 0;
-  //PROTECT(iter = allocVector(INTSXP, L));
   PROTECT(iter = allocVector(INTSXP, 1));
-  //for (int i = 0; i < L; i++) INTEGER(iter)[i] = 0;
   for (int i = 0; i < 1; i++) INTEGER(iter)[i] = 0;
   double *a = Calloc(p, double); // Beta from previous iteration
   for (int j = 0; j < p; j++) a[j] = 0; // Beta0 from previous iteration
@@ -285,17 +274,14 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
   double *t2 = REAL(t2_);
   double *wt = REAL(wt_);
   int *ici = INTEGER(ici_);
-  //const char *penalty = CHAR(STRING_ELT(penalty_, 0));
   double lam = REAL(lambda_)[0];
   double esp = REAL(esp_)[0];
   int max_iter = INTEGER(max_iter_)[0];
-  //double gamma = REAL(gamma_)[0];
   double *m = REAL(multiplier);
-  //double alpha = REAL(alpha_)[0];
   double *eta = Calloc(n, double);
   for (int i = 0; i < n; i++) eta[i] = 0;
   double *wye = Calloc(n, double);
-  double xwr, xwx, u, v, l1, l2, shift, likli, s0, si;
+  double xwr, xwx, u, v, l1, shift, likli, s0, si;
   int converged;
 
   //end of declaration;
@@ -350,24 +336,16 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
 
     // calculate xwr and xwx & update beta_j
     for (int j = 0; j < p; j++) {
-      xwr = wcrossprod(x, r, w, n, j);
-      xwx = wsqsum(x, w, n, j);
+      xwr = wcrossprod(x, r, w, n, j); // h_j * g_j
+      xwx = wsqsum(x, w, n, j); // h_j
       u   = xwr / n + (xwx / n) * a[j]; // z in paper
       v   = xwx / n;
 
       // Update b_j
-      //l1 = lam[l] * m[j] * alpha;
-      //l2 = lam[l] * m[j] * (1-alpha);
-      l1 = lam * m[j] / n;
-      //l1 = lam / n;
-      l2 = m[j];
+      l1 = lam * m[j] / n; //divide by n since we are minimizing the following: -(1/n)l(beta) + lambda * p(beta)
 
       //Change penalty to ridge regression
       b[j] = ridge(u, l1, v);
-
-      //if (strcmp(penalty,"MCP")==0) b[l*p+j] = MCP(u, l1, l2, gamma, v);
-      //if (strcmp(penalty,"SCAD")==0) b[l*p+j] = SCAD(u, l1, l2, gamma, v);
-      //if (strcmp(penalty,"LASSO")==0) b[l*p+j] = lasso(u, l1, l2, v);
 
       // Update r
       shift = b[j] - a[j];
@@ -381,6 +359,162 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
 
     } //for j = 0 to (p - 1)
     // Check for convergence
+    converged = checkConvergence(b, a, esp, p);
+    for (int i = 0; i < p; i++)
+      a[i] = b[i];
+
+    //Calculate deviance
+    REAL(Dev)[0] = -2 * getLogLikelihood(t2, ici, x, p, n, wt, a);
+
+    for (int i = 0; i < n; i++){
+      s[i] = st[i];
+      h[i] = w[i];
+    }
+    if (converged)  break;
+    //for converge
+  } //for while loop
+
+  res = cleanupCRR(a, eta, wye, st, w, beta, Dev, iter, residuals, score, hessian);
+  return(res);
+}
+
+// GROUP BAR
+//Penalized grouped ridge
+void groupRidge(double *b, double *x, double *r, double *w, double *eta, int g, int *K1, int n, int p, double lam, double *a) {
+
+  // Initialize
+  int K = K1[g + 1] - K1[g];
+  double *z = Calloc(K, double);
+  double *v = Calloc(K, double);
+
+  //Find group norm
+  for (int j = K1[g]; j < K1[g + 1]; j++){
+    z[j - K1[g]] = wcrossprod(x, r, w, n, j) / n + wsqsum(x, w, n, j) / n * a[j];
+    v[j - K1[g]] = wsqsum(x, w, n, j) / n;}
+  double z_norm = norm(z, K);
+
+  // Update b
+  double len = 0;
+  for (int j = K1[g]; j < K1[g + 1]; j++) {
+    len = ridge(z_norm, lam, v[j - K1[g]]);
+    if ((len != 0) | (a[K1[g]] != 0)) {
+      b[p + j] = len * z[j - K1[g]] / z_norm;
+      double shift = b[p + j] - a[j];
+      for (int i=0; i < n; i++) {
+        double si = shift * x[j * n + i];
+        r[i] -= si;
+        eta[i] += si;
+      }//for i=0 to n loop
+    }//if loop
+  }
+
+  Free(z);
+  Free(v);
+}
+
+
+//start group cordinate descent
+SEXP ccd_gridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP K1_, SEXP penalty_, SEXP lambda_, SEXP esp_, SEXP max_iter_, SEXP multiplier) {
+  //Declaration
+  int n = length(t2_);
+  int p = length(x_) / n;
+  int J = length(K1_) - 1; //Number of groups + 1
+  int *K1 = INTEGER(K1_);
+  double nullDev;
+  SEXP res, beta, Dev, iter, residuals, score, hessian;
+  PROTECT(beta = allocVector(REALSXP, p));
+  double *b = REAL(beta);
+  for (int j = 0; j < p; j++) b[j] = 0;
+  PROTECT (score = allocVector(REALSXP, n));
+  double *s = REAL(score);
+  for (int i = 0; i < n; i++) s[i] = 0;
+  PROTECT (hessian = allocVector(REALSXP, n));
+  double *h = REAL(hessian);
+  for (int i = 0; i <  n; i++) h[i] = 0;
+  PROTECT(residuals = allocVector(REALSXP, n));
+  double *r = REAL(residuals);
+  PROTECT(Dev = allocVector(REALSXP, 1));
+  for (int i = 0; i < 1; i++) REAL(Dev)[i] = 0;
+  PROTECT(iter = allocVector(INTSXP, 1));
+  for (int i = 0; i < 1; i++) INTEGER(iter)[i] = 0;
+  double *a = Calloc(p, double); // Beta from previous iteration
+  for (int j = 0; j < p; j++) a[j] = 0; // Beta0 from previous iteration
+  double *st = Calloc(n, double);
+  for (int i = 0; i < n; i++) st[i]=0;
+  double *w = Calloc(n, double);
+  for ( int i = 0; i < n; i++) w[i]=0;
+  double *x = REAL(x_);
+  double *t2 = REAL(t2_);
+  double *wt = REAL(wt_);
+  int *ici = INTEGER(ici_);
+  double lam = REAL(lambda_)[0];
+  double esp = REAL(esp_)[0];
+  int max_iter = INTEGER(max_iter_)[0];
+  double *m = REAL(multiplier);
+  double *eta = Calloc(n, double);
+  for (int i = 0; i < n; i++) eta[i] = 0;
+  double *wye = Calloc(n, double);
+  double l1, likli, s0;
+  int converged;
+
+  //end of declaration;
+
+  //initialization
+  nullDev = -2 * getLogLikelihood(t2, ici, x, p, n, wt, a); // Calculate null deviance at beta = 0
+
+  for (int j = 0; j < p; j++) a[j] = b[j];
+
+  while (INTEGER(iter)[0] < max_iter) {
+    if (REAL(Dev)[0] - nullDev > 0.99 * nullDev) break;
+
+    INTEGER(iter)[0]++;
+
+    // This part is the same as regular BAR
+    likli = 0;
+    for (int i = 0; i < n; i++){
+      st[i] = 0;
+      w[i]= 0;
+    }
+    for (int i = 0; i < n; i++)
+    {
+      if (ici[i] != 1) continue;
+      likli += eta[i];
+      st[i] += 1;
+
+      // score
+      s0 = 0;
+      for (int j1 = 0; j1 < n; j1++)
+        wye[j1] = 0;
+      for (int k = 0; k < n; k++)
+      {
+        if (t2[k] < t2[i] && ici[k] <= 1) continue;
+
+        if (t2[k] >= t2[i])
+          wye[k] = exp(eta[k]);
+        else
+          wye[k] = exp(eta[k]) * wt[i] / wt[k];
+        s0 += wye[k];
+      }
+      for (int j2 = 0; j2 < n; j2++){
+        st[j2] += -wye[j2] / s0;
+        w[j2] += wye[j2] / s0 - pow(wye[j2], 2) / (s0 * s0);
+      }
+      likli -= log(s0);
+    }
+
+    for ( int j3 = 0; j3 < n; j3++){
+      if (w[j3] == 0) r[j3] = 0;
+      else r[j3] = st[j3] / w[j3];
+    }
+
+    // Here is where we take into account grouping info
+    // For each group
+    for (int g = 0; g < J; g++) {
+      // Update b_j
+      l1 = lam * m[g] * sqrt(K1[g + 1] - K1[g]) / n; //divide by n since we are minimizing the following: -(1/n)l(beta) + lambda * p(beta)
+      groupRidge(b, x, r, w, eta, g, K1, n, p, l1, a); //use groupRidge penalty defined above
+    }
+
     converged = checkConvergence(b, a, esp, p);
     for (int i = 0; i < p; i++)
       a[i] = b[i];
