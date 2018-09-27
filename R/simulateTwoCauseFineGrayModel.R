@@ -42,14 +42,13 @@ simulateTwoCauseFineGrayModel <- function(nobs, beta1, beta2, X = NULL, u.min = 
   #Conditional on cause indicators, we simulate the model.
   ftime <- numeric(nobs)
 
-  eta  <- X%*%beta1 #n by 1
-  eta1 <- eta[c.ind == 1]
-  eta2 <- eta[c.ind == 2]
+  eta1 <- X[c.ind == 1, ] %*% beta1
+  eta2 <- X[c.ind == 2, ] %*% beta2
 
 
   u1 <- runif(length(eta1))
   t1 <- -log(1 - (1 - (1 - u1 * (1 - (1 - p)^exp(eta1)))^(1 / exp(eta1))) / p)
-  t2 <- rexp(length(eta2), rate = exp(X[c.ind == 2, ] %*% beta2))
+  t2 <- rexp(length(eta2), rate = exp(eta2))
   ci <- runif(nobs, min = u.min, max = u.max) #simulate censoring times
 
   ftime[c.ind == 1] <- t1

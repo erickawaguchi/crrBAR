@@ -2,10 +2,12 @@
 
 export(createLambdaGrid)
 export(crrBAR)
+export(crrBARL0)
 export(crrHARD)
 export(gcrrBAR)
 export(getLogLikelihood)
 export(simulateTwoCauseFineGrayModel)
+import(Matrix)
 import(cmprsk)
 import(survival)
 useDynLib(crrBAR,standardize)

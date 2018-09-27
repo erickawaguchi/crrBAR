@@ -1,4 +1,4 @@
-#' Broken Adaptive Ridge Regression for Competing Risks Regression
+#' Efficient L0-BAR for the Fine-Gray Model
 #'
 #' @description Fits broken adaptive ridge regression for competing risks regression.
 #' Based on the \strong{crrp} package which performs penalized variable selection using LASSO, SCAD, and MCP.
@@ -45,7 +45,7 @@
 #'
 #' Fu Z., Parikh C. and Zhou B. (2017). Penalized variable selection in competing risks regression. \emph{Lifetime Data Anal} 23:353-376.
 
-crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
+crrBARL0 <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
                    lambda = 0, xi = 0, delta = 0,
                    eps = 1E-6, tol = 1E-6,
                    lam.min = ifelse(dim(X)[1] > dim(X)[2], 0.001, 0.05),
@@ -99,7 +99,7 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   # If lambda is MISSING, create lambda path
   if(missing(lambda)) {
     lambda <- createLambdaGrid(ftime, fstatus, XX, uuu, lam.min = lam.min,
-                          nlambda = nlambda, log = log)
+                               nlambda = nlambda, log = log)
   } else {
     lambda <- lambda
   }
@@ -112,15 +112,15 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
                       penalty.factor = rep(1, p), PACKAGE = "crrBAR")
   ridgeCoef  <- ridgeFit[[1]] / scale #Divide coeff estimates by sdev
   ridgeIter  <- ridgeFit[[3]]
-
+  ridge_eta  <- ridgeFit[[7]]
   #Results to store:
   coefMatrix           <- matrix(NA, nrow = p, ncol = length(lambda))
   colnames(coefMatrix) <- round(lambda, 3)
 
-  scoreMatrix           <- matrix(NA, nrow = p, ncol = length(lambda))
+  scoreMatrix           <- matrix(NA, nrow = n, ncol = length(lambda))
   colnames(scoreMatrix) <- round(lambda, 3)
 
-  hessMatrix           <- matrix(NA, nrow = p, ncol = length(lambda))
+  hessMatrix           <- matrix(NA, nrow = n, ncol = length(lambda))
   colnames(hessMatrix) <- round(lambda, 3)
 
 
@@ -132,30 +132,18 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   btmp <- ridgeFit[[1]]
   for(l in 1:length(lambda)) {
     lam  <- lambda[l]
-    continue <- TRUE;  count <- 0; converged <- FALSE
-    while(continue) {
-      count  <- count + 1
-      bar_wt <- abs(btmp)^(2 - delta)
-      barFit <- .Call("ccd_ridge", XX, as.numeric(ftime), as.integer(fstatus), uuu,
+    barFit <- .Call("ccd_bar", XX, as.numeric(ftime), as.integer(fstatus), uuu,
                       lam, eps, as.integer(max.iter),
-                      penalty.factor = 1 / bar_wt, PACKAGE = "crrBAR")
-      beta0 <- barFit[[1]]
-      beta0 <- ifelse(abs(beta0) < tol, 0, beta0)
+                      btmp, ridge_eta, PACKAGE = "crrBAR")
+    beta0 <- barFit[[1]]
+    beta0 <- ifelse(abs(beta0) < tol, 0, beta0)
 
-      #Convergence criterion: Max absolute difference between updates is less than eps.
-      if(max(abs(beta0 - btmp)) < eps) {
-        converged <- TRUE
-      } else {
-        btmp <- beta0
-      }
-      if(converged || count >= max.iter) continue <- FALSE
-    }
     coefMatrix[, l]  <- beta0 / scale
-    scoreMatrix[, l] <- barFit[[5]]/ scale
-    hessMatrix[, l]  <- barFit[[6]] / scale
-    logLik[l, ]      <- -barFit[[2]] / 2 #barFit[[2]] = deviance = -2 * ll
-    iter[l]          <- count
-    conv[l]          <- converged
+    scoreMatrix[, l] <- barFit[[5]]
+    hessMatrix[, l]  <- barFit[[6]]
+    logLik[l, ]        <- -barFit[[2]] / 2 #barFit[[2]] = deviance = -2 * ll
+    iter[l]          <- barFit[[3]]
+    conv[l]          <- barFit[[7]]
   }
 
   ## Output
@@ -163,14 +151,12 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
                         logLik = logLik,
                         iter = iter,
                         lambda = lambda,
-                        grad = scoreMatrix,
-                        hess = hessMatrix,
                         converged = conv,
                         ridgeCoef = ridgeCoef,
                         ridgeIter = ridgeIter,
                         xi = xi,
                         call = sys.call()),
-                        class = "crrBAR")
+                   class = "crrBAR")
 
   val
 }

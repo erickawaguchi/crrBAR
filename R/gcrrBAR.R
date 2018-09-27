@@ -9,7 +9,7 @@
 #' @param X A matrix of fixed covariates (nobs x ncovs)
 #' @param failcode Integer: code of \code{fstatus} that event type of interest (default is 1)
 #' @param cencode Integer: code of \code{fstatus} that denotes censored observations (default is 0)
-#' @param group Vector of group indicators. For efficiency, should be a vector of consecutive integers.
+#' @param group Vector of group indicators. Must be a vector of consecutive integers.
 #' @param lambda Numeric: BAR tuning parameter value
 #' @param xi Numeric: tuning parameter for initial ridge regression
 #' @param delta Numeric: change from 2 in ridge norm dimension
@@ -28,7 +28,7 @@
 #' Fixing \code{lambda} to 0 and specifying \code{xi} will result in a ridge regression solution.
 #' @return Returns a list of class \code{crrBAR}.
 #'
-#' @import survival cmprsk
+#' @import survival cmprsk Matrix
 #' @export
 #' @useDynLib crrBAR standardize
 #' @examples
@@ -37,7 +37,8 @@
 #' fstatus <- sample(0:2, 200, replace = TRUE)
 #' cov <- matrix(runif(1000), nrow = 200)
 #' dimnames(cov)[[2]] <- c('x1','x2','x3','x4','x5')
-#' fit <- crrBAR(ftime, fstatus, cov, lambda = log(sum(fstatus == 1)) / 2, xi = 1 / 2)
+#' gp <- c(1, 1, 2, 2, 3)
+#' fit <- gcrrBAR(ftime, fstatus, cov, group = gp, lambda = log(sum(fstatus == 1)) / 2, xi = 1 / 2)
 #' fit$coef
 #' @references
 #' Breheny, P. and Huang, J. (2011) Coordinate descent algorithms for nonconvex penalized regression, with applications to biological feature selection. \emph{Ann. Appl. Statist.}, 5: 232-253.
@@ -45,6 +46,8 @@
 #' Fine J. and Gray R. (1999) A proportional hazards model for the subdistribution of a competing risk.  \emph{JASA} 94:496-509.
 #'
 #' Fu Z., Parikh C. and Zhou B. (2017). Penalized variable selection in competing risks regression. \emph{Lifetime Data Anal} 23:353-376.
+#'
+#' Breheny, P. and Huang, J. (2015). Group descent algorithms for nonconvex penalized linear and logistic regression models with grouped predictors. \emph{Statistics and Computing} 25: 173-187
 
 gcrrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
                    group = 1:ncol(X),
@@ -88,18 +91,11 @@ gcrrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   xnames <- if (is.null(colnames(X))) paste("V", 1:ncol(X), sep="") else colnames(X)
   colnames(X) <- xnames
   if (any(order(group) != 1:length(group)) | !is.numeric(group)) {
-    reorder.groups <- TRUE
-    g <- as.numeric(group)
-    g.ord <- order(g)
-    g.ord.inv <- match(1:length(g), g.ord)
-    g <- g[g.ord]
-    X <- X[, g.ord]
-    penalty.factor <- penalty.factor(g.ord)
-  } else {
-    reorder.groups <- FALSE
-    g <- group
-    J <- max(g)
+    stop("As of current version. Groups must be ordered in ascending order (e.g. 1, 1, 1, 2, 2, 3, 3, ...) and must be a numeric vector")
   }
+
+  g <- group
+  J <- max(g)
   # g = Group ordering (ex. 1, 1, 1, 2, 2, 2, 3, 3, 3, ..., g, g)
   # J = max group.
 
@@ -108,7 +104,7 @@ gcrrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   XX     <- std[[1]]
   center <- std[[2]]
   scale  <- std[[3]]
-  nz <- which(scale > 1e-6)
+  nz <- which(scale > 1e-6) #- Only keep columns that have s.d. > 1E-6
   zg <- setdiff(unique(g), unique(g[nz]))
   XX <- XX[ , nz, drop = FALSE]
   g  <- g[nz]
@@ -139,7 +135,6 @@ gcrrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
 
 
   K1 <- as.integer(c(0, cumsum(K))) # (0, g1, g1 + g2, g1 + g2 + g3, ...)
-  btmp <- ridgeFit[[1]]
   #Results to store:
   coefMatrix           <- matrix(NA, nrow = p, ncol = length(lambda))
   colnames(coefMatrix) <- round(lambda, 3)
@@ -155,25 +150,27 @@ gcrrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   iter   <- numeric(length(lambda))
   conv   <- logical(length(lambda))
 
-
-
+  btmp <- ridgeFit[[1]]
   #Enter BAR Fit here (for different lambdas)
   for(l in 1:length(lambda)) {
     lam  <- lambda[l]
     continue <- TRUE;  count <- 0; converged <- FALSE
     while(continue) {
       count  <- count + 1
+      #Modify BAR weight for grouped covariates
+      bar_wt <- numeric(length(K1) - 1)
 
-      #Modify BAR weight
-      bar_wt <- abs(btmp)^(2 - delta)
+      #- Create weights: sqrt(p_j) / ||\beta_j||_2^(2 - delta)
+      for (jj in 1: (length(K1) - 1)){
+        #bar_wt[jj] <- sqrt(K1[jj + 1] - K1[jj]) / sqrt(sum(btmp[(K1[jj] + 1):K1[jj + 1]])^2)^(2 - delta)
+        bar_wt[jj] <- 1 / sqrt(sum(btmp[(K1[jj] + 1):K1[jj + 1]])^2)^(2 - delta)
+      }
 
-
+      #BAR Fit
       barFit <- .Call("ccd_gridge", XX, as.numeric(ftime), as.integer(fstatus), uuu, K1,
                       lam, eps, as.integer(max.iter),
-                      penalty.factor = 1 / bar_wt, PACKAGE = "crrBAR")
-      beta0 <- unorthogonalize(beta0, XX, g)
-      beta0 <- barFit[[1]] / scale
-      beta0 <- ifelse(abs(beta0) < tol, 0, beta0)
+                      penalty.factor = bar_wt, PACKAGE = "crrBAR")
+      beta0 <- barFit[[1]]
 
       #Convergence criterion: Max absolute difference between updates is less than eps.
       if(max(abs(beta0 - btmp)) < eps) {
@@ -183,12 +180,16 @@ gcrrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
       }
       if(converged || count >= max.iter) continue <- FALSE
     }
-    coefMatrix[, l]  <- beta0
+    #Unorthogonalize and standardize AFTER convergence
+    beta0 <- ifelse(abs(beta0) < tol, 0, beta0)
+    beta0 <- unorthogonalize(beta0, XX, g)
+    coefMatrix[, l]  <- beta0 / scale[nz]
     scoreMatrix[, l] <- barFit[[5]]
     hessMatrix[, l]  <- barFit[[6]]
     logLik[l]        <- -barFit[[2]] / 2 #barFit[[2]] = deviance = -2 * ll
     iter[l]          <- count
     conv[l]          <- converged
+    grouping         <- group
   }
 
   ## Output
