@@ -567,7 +567,8 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
       l1  = lam / n; //divide by n since we are minimizing the following: -(1/n)l(beta) + lambda * p(beta)
 
       //New beta_j update
-      b[j] = newBarL0(xwx / n, xwr / n, a[j], l1);
+      if (a[j] == 0) b[j] = 0;
+      else b[j] = newBarL0(xwx / n, xwr / n, a[j], l1);
 
       // Update r
       shift = b[j] - a[j];
