@@ -260,8 +260,8 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
 
   PROTECT(residuals = allocVector(REALSXP, n));
   double *r = REAL(residuals);
-  PROTECT(Dev = allocVector(REALSXP, 2));
-  for (int i = 0; i < 2; i++) REAL(Dev)[i] = 0;
+  PROTECT(Dev = allocVector(REALSXP, 1));
+  for (int i = 0; i < 1; i++) REAL(Dev)[i] = 0;
   PROTECT(iter = allocVector(INTSXP, 1));
   for (int i = 0; i < 1; i++) INTEGER(iter)[i] = 0;
   PROTECT(linpred = allocVector(REALSXP, n));
@@ -301,12 +301,11 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
 
   //initialization
   nullDev = -2 * getLogLikelihood(t2, ici, x, p, n, wt, a); // Calculate null deviance at beta = 0
-  REAL(Dev)[0] = nullDev;
 
   for (int j = 0; j < p; j++) a[j] = b[j];
 
   while (INTEGER(iter)[0] < max_iter) {
-    if (REAL(Dev)[1] - nullDev > 0.99 * nullDev) break;
+    if (REAL(Dev)[0] - nullDev > 0.99 * nullDev) break;
 
     INTEGER(iter)[0]++;
 
@@ -381,7 +380,7 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
       a[i] = b[i];
 
     //Calculate deviance
-    REAL(Dev)[1] = -2 * getLogLikelihood(t2, ici, x, p, n, wt, a);
+    REAL(Dev)[0] = -2 * getLogLikelihood(t2, ici, x, p, n, wt, a);
 
     for (int i = 0; i < n; i++){
       lp[i] = eta[i];
@@ -461,8 +460,8 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
   for (int i = 0; i <  n; i++) h[i] = 0;
   PROTECT(residuals = allocVector(REALSXP, n));
   double *r = REAL(residuals);
-  PROTECT(Dev = allocVector(REALSXP, 2));
-  for (int i = 0; i < 2; i++) REAL(Dev)[i] = 0;
+  PROTECT(Dev = allocVector(REALSXP, 1));
+  for (int i = 0; i < 1; i++) REAL(Dev)[i] = 0;
   PROTECT(iter = allocVector(INTSXP, 1));
   for (int i = 0; i < 1; i++) INTEGER(iter)[i] = 0;
   PROTECT(converged = allocVector(INTSXP, 1));
@@ -508,7 +507,6 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
 
 
   nullDev = -2 * getLogLikelihood(t2, ici, x, p, n, wt, a); // Calculate null deviance at beta = 0
-  REAL(Dev)[0] = nullDev;
 
   //for (int j = 0; j < p; j++) a[j] = b[j];
   for (int j = 0; j < p; j++) a[j] = m[j];
@@ -516,7 +514,7 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
 
   //Start algorithm here
   while (INTEGER(iter)[0] < max_iter) {
-    if (REAL(Dev)[1] - nullDev > 0.99 * nullDev) break;
+    if (REAL(Dev)[0] - nullDev > 0.99 * nullDev) break;
 
     INTEGER(iter)[0]++;
 
@@ -584,7 +582,7 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
       a[j] = b[j];
 
     //Calculate deviance
-    REAL(Dev)[1] = -2 * getLogLikelihood(t2, ici, x, p, n, wt, a);
+    REAL(Dev)[0] = -2 * getLogLikelihood(t2, ici, x, p, n, wt, a);
 
     for (int i = 0; i < n; i++){
       s[i] = st[i];

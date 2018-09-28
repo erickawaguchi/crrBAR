@@ -124,7 +124,7 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   colnames(hessMatrix) <- round(lambda, 3)
 
 
-  logLik  <- matrix(NA, nrow = length(lambda), ncol = 2)
+  logLik  <-numeric(length(lambda))
   iter   <- numeric(length(lambda))
   conv   <- logical(length(lambda))
 
@@ -153,7 +153,7 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
     coefMatrix[, l]  <- beta0 / scale
     scoreMatrix[, l] <- barFit[[5]]/ scale
     hessMatrix[, l]  <- barFit[[6]] / scale
-    logLik[l, ]      <- -barFit[[2]] / 2 #barFit[[2]] = deviance = -2 * ll
+    logLik[l]      <- -barFit[[2]] / 2 #barFit[[2]] = deviance = -2 * ll
     iter[l]          <- count
     conv[l]          <- converged
   }
