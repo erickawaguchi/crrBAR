@@ -5,9 +5,8 @@
 \title{Efficient L0-BAR for the Fine-Gray Model}
 \usage{
 crrBARL0(ftime, fstatus, X, failcode = 1, cencode = 0, lambda = 0,
-  xi = 0, delta = 0, eps = 1e-06, tol = 1e-06,
-  lam.min = ifelse(dim(X)[1] > dim(X)[2], 0.001, 0.05), nlambda = 25,
-  log = TRUE, max.iter = 1000)
+  xi = 0, delta = 0, eps = 1e-06, lam.min = ifelse(dim(X)[1] >
+  dim(X)[2], 0.001, 0.05), nlambda = 25, log = TRUE, max.iter = 1000)
 }
 \arguments{
 \item{ftime}{A vector of event/censoring times.}
@@ -24,11 +23,7 @@ crrBARL0(ftime, fstatus, X, failcode = 1, cencode = 0, lambda = 0,
 
 \item{xi}{Numeric: tuning parameter for initial ridge regression}
 
-\item{delta}{Numeric: change from 2 in ridge norm dimension}
-
 \item{eps}{Numeric: algorithm stops when the relative change in any coefficient is less than \code{eps} (default is \code{1E-6})}
-
-\item{tol}{Numeric: absolute threshold at which to force coefficients to 0 (default is \code{1E-6})}
 
 \item{lam.min}{Numeric: smallest value of lambda if performing grid search}
 

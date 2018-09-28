@@ -11,9 +11,7 @@
 #' @param cencode Integer: code of \code{fstatus} that denotes censored observations (default is 0)
 #' @param lambda Numeric: BAR tuning parameter value
 #' @param xi Numeric: tuning parameter for initial ridge regression
-#' @param delta Numeric: change from 2 in ridge norm dimension
 #' @param eps Numeric: algorithm stops when the relative change in any coefficient is less than \code{eps} (default is \code{1E-6})
-#' @param tol Numeric: absolute threshold at which to force coefficients to 0 (default is \code{1E-6})
 #' @param lam.min Numeric: smallest value of lambda if performing grid search
 #' @param nlambda Numeric: number of \code{lambda} values if performing grid search  (default is 25)
 #' @param log Logical: Whether or not the grid search is log10 spaced (default is \code{TRUE})
@@ -47,7 +45,7 @@
 
 crrBARL0 <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
                    lambda = 0, xi = 0, delta = 0,
-                   eps = 1E-6, tol = 1E-6,
+                   eps = 1E-6,
                    lam.min = ifelse(dim(X)[1] > dim(X)[2], 0.001, 0.05),
                    nlambda = 25,
                    log = TRUE,
@@ -136,7 +134,6 @@ crrBARL0 <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
                       lam, eps, as.integer(max.iter),
                       btmp, ridge_eta, PACKAGE = "crrBAR")
     beta0 <- barFit[[1]]
-    beta0 <- ifelse(abs(beta0) < tol, 0, beta0)
 
     coefMatrix[, l]  <- beta0 / scale
     scoreMatrix[, l] <- barFit[[5]]
