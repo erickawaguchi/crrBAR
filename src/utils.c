@@ -441,7 +441,7 @@ double newBarL0(double h, double g, double b, double l) {
 // Here multiplier = beta^(0)
 SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
              SEXP esp_, SEXP max_iter_, SEXP beta0_,
-              SEXP eta_) {
+             SEXP eta_) {
 
   //Declaration
   int n = length(t2_);
@@ -560,16 +560,13 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
 
     // calculate xwr and xwx & update beta_j
     for (int j = 0; j < p; j++) {
+      if (a[j] == 0) b[j] = 0;
+      else {
       xwr = wcrossprod(x, r, w, n, j); //  g_j
       xwx = wsqsum(x, w, n, j); // h_j
-      //u   = xwr / n + (xwx / n) * a[j]; // g_j / n + h_j b_j / n
-      //v   = xwx / n; // h_jj / n
-      l1  = lam / n; //divide by n since we are minimizing the following: -(1/n)l(beta) + lambda * p(beta)
-
       //New beta_j update
-      if (a[j] == 0) b[j] = 0;
-      else b[j] = newBarL0(xwx / n, xwr / n, a[j], l1);
-
+      b[j] = newBarL0(xwx / n, xwr / n, a[j], lam / n);
+      }
       // Update r
       shift = b[j] - a[j];
       if (shift != 0) {

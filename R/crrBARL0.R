@@ -55,7 +55,6 @@ crrBARL0 <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   if(xi < 0) stop("xi must be a non-negative number.")
   if(max.iter < 1) stop("max.iter must be positive integer.")
   if(eps <= 0) stop("eps must be a positive number.")
-  if(tol <= 0) stop("tol must be a positive number.")
   if(delta < 0) stop("d must be a non-negative number.")
 
 
