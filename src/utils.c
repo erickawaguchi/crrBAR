@@ -477,7 +477,7 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
   double *eta = Calloc(n, double);
   for (int i = 0; i < n; i++) eta[i] = 0;
   double *wye = Calloc(n, double);
-  double xwr, xwx, l1, shift, likli, s0, si;
+  double xwr, xwx, shift, likli, s0, si;
   //int converged;
 
   //Pointers
@@ -558,12 +558,12 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
 
     // calculate xwr and xwx & update beta_j
     for (int j = 0; j < p; j++) {
-      if (a[j] == 0) b[j] = 0;
+      if(a[j] == 0) b[j] = 0;
       else {
-      xwr = wcrossprod(x, r, w, n, j); //  g_j
-      xwx = wsqsum(x, w, n, j); // h_j
-      //New beta_j update
-      b[j] = newBarL0(xwx / n, xwr / n, a[j], lam / n);
+        xwr = wcrossprod(x, r, w, n, j); //  g_j
+        xwx = wsqsum(x, w, n, j); // h_j
+        //New beta_j update
+        b[j] = newBarL0(xwx / n, xwr / n, a[j], lam / n);
       }
       // Update r
       shift = b[j] - a[j];

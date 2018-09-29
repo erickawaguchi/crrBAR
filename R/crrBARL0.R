@@ -135,8 +135,8 @@ crrBARL0 <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
     beta0 <- barFit[[1]]
 
     coefMatrix[, l]  <- beta0 / scale
-    scoreMatrix[, l] <- barFit[[5]]
-    hessMatrix[, l]  <- barFit[[6]]
+    #scoreMatrix[, l] <- barFit[[5]]
+    #hessMatrix[, l]  <- barFit[[6]]
     logLik[l]        <- -barFit[[2]] / 2 #barFit[[2]] = deviance = -2 * ll
     iter[l]          <- barFit[[3]]
     conv[l]          <- barFit[[7]]
