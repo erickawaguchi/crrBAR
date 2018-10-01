@@ -199,7 +199,7 @@ double wsqsum(double *X, double *w, int n, int j) {
 
 
 ///////////////////////////////////////////////////////////////////////////////////////
-SEXP cleanupCRR(double *a, double *eta, double *wye, double *st, double *w,
+SEXP cleanupCRR(double *a, double *eta, double *wye, double *st, double *w, double *dd1, double *dd2,
                 SEXP beta, SEXP Dev, SEXP iter, SEXP residuals, SEXP score, SEXP hessian, SEXP linpred) {
   Free(a);
   Free(eta);
@@ -245,12 +245,6 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
   PROTECT(beta = allocVector(REALSXP, p));
   double *b = REAL(beta);
   for (int j = 0; j < p; j++) b[j] = 0;
-  //PROTECT (score = allocVector(REALSXP, n));
-  //double *s = REAL(score);
-  //for (int i = 0; i < n; i++) s[i] = 0;
-  //PROTECT (hessian = allocVector(REALSXP, n));
-  //double *h = REAL(hessian);
-  //for (int i = 0; i <  n; i++) h[i] = 0;
   PROTECT (score = allocVector(REALSXP, p));
   double *s = REAL(score);
   for (int j = 0; j < p; j++) s[j] = 0;
@@ -277,9 +271,8 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
   for ( int i = 0; i < n; i++) w[i]=0;
   double *dd1 = Calloc(p, double);
   for (int j = 0; j < p; j++) dd1[p]=0;
-  double *dd2 = Calloc(n, double);
+  double *dd2 = Calloc(p, double);
   for ( int j = 0; j < p; j++) dd2[p]=0;
-
   double *eta = Calloc(n, double);
   for (int i = 0; i < n; i++) eta[i] = 0;
   double *wye = Calloc(n, double);
@@ -393,28 +386,44 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
     //for converge
   } //for while loop
 
-  res = cleanupCRR(a, eta, wye, st, w, beta, Dev, iter, residuals, score, hessian, linpred);
+  res = cleanupCRR(a, eta, wye, st, w, dd1, dd2, beta, Dev, iter, residuals, score, hessian, linpred);
   return(res);
 }
 
-
 ////////////////////////////////////////////////////
-SEXP cleanupNewCRR(double *a, double *eta, double *wye, double *st, double *w,  SEXP beta, SEXP Dev, SEXP iter, SEXP residuals, SEXP score, SEXP hessian, SEXP converged) {
+// FAST L_0-BAR
+////////////////////////////////////////////////////
+int checkFastBarConvergence(double *beta, double *beta_old, double eps, int l, int p) {
+  int converged = 1;
+  for (int j = 0; j < p; j++) {
+    if (fabs((beta[l * p + j] - beta_old[j])) > eps) {
+      converged = 0;
+      break;
+    }
+  }
+  return(converged);
+}
+
+SEXP cleanupNewCRR(double *a, double *e,  double *eta, double *wye, double *st, double *w,
+                   SEXP beta, SEXP Dev, SEXP iter, SEXP residuals, SEXP score, SEXP hessian, SEXP linpred, SEXP converged) {
+  // Free up all intermediate step variables
   Free(a);
+  Free(e);
   Free(eta);
   Free(wye);
   Free(st);
   Free(w);
   SEXP res;
-  PROTECT(res = allocVector(VECSXP, 7));
+  PROTECT(res = allocVector(VECSXP, 8));
   SET_VECTOR_ELT(res, 0, beta); //coefficient estimates
   SET_VECTOR_ELT(res, 1, Dev); //deviance = -2*loglik
   SET_VECTOR_ELT(res, 2, iter); //iterations until convergence
   SET_VECTOR_ELT(res, 3, residuals); //residuals
   SET_VECTOR_ELT(res, 4, score); //gradient
   SET_VECTOR_ELT(res, 5, hessian); //hessian
-  SET_VECTOR_ELT(res, 6, converged); //check convergence
-  UNPROTECT(8);
+  SET_VECTOR_ELT(res, 6, linpred); //hessian
+  SET_VECTOR_ELT(res, 7, converged); //check convergence
+  UNPROTECT(9);
   return(res);
 }
 
@@ -439,33 +448,36 @@ double newBarL0(double h, double g, double b, double l) {
 
 // Here multiplier = beta^(0)
 SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
-             SEXP esp_, SEXP max_iter_, SEXP beta0_,
-             SEXP eta_) {
+             SEXP esp_, SEXP max_iter_, SEXP beta0_) {
 
   //Declaration
   int n = length(t2_);
   int p = length(x_) / n;
+  int L = length(lambda_);
   double nullDev;
 
   //Output
-  SEXP res, beta, Dev, iter, residuals, score, hessian, converged;
-  PROTECT(beta = allocVector(REALSXP, p));
+  SEXP res, beta, Dev, iter, residuals, score, hessian, converged, linpred;
+  PROTECT(beta = allocVector(REALSXP, L * p));
   double *b = REAL(beta);
-  for (int j = 0; j < p; j++) b[j] = 0;
-  PROTECT (score = allocVector(REALSXP, n));
+  for (int j = 0; j < (L * p); j++) b[j] = 0;
+  PROTECT (score = allocVector(REALSXP, L * n));
   double *s = REAL(score);
-  for (int i = 0; i < n; i++) s[i] = 0;
-  PROTECT (hessian = allocVector(REALSXP, n));
+  for (int i = 0; i < (L * n); i++) s[i] = 0;
+  PROTECT (hessian = allocVector(REALSXP, L * n));
   double *h = REAL(hessian);
-  for (int i = 0; i <  n; i++) h[i] = 0;
+  for (int i = 0; i <  (L * n); i++) h[i] = 0;
   PROTECT(residuals = allocVector(REALSXP, n));
   double *r = REAL(residuals);
-  PROTECT(Dev = allocVector(REALSXP, 1));
-  for (int i = 0; i < 1; i++) REAL(Dev)[i] = 0;
-  PROTECT(iter = allocVector(INTSXP, 1));
-  for (int i = 0; i < 1; i++) INTEGER(iter)[i] = 0;
-  PROTECT(converged = allocVector(INTSXP, 1));
-  for (int i = 0; i < 1; i++) INTEGER(converged)[i] = 0;
+  PROTECT(Dev = allocVector(REALSXP, L + 1));
+  for (int i = 0; i < (L + 1); i++) REAL(Dev)[i] = 0;
+  PROTECT(iter = allocVector(INTSXP, L));
+  for (int i = 0; i < L; i++) INTEGER(iter)[i] = 0;
+  PROTECT(converged = allocVector(INTSXP, L));
+  for (int i = 0; i < L; i++) INTEGER(converged)[i] = 0;
+  PROTECT(linpred = allocVector(REALSXP, n));
+  double *lp = REAL(linpred);
+  for (int i = 0; i <  n; i++) lp[i] = 0;
 
   //Intermediate quantities for internal use
   double *a = Calloc(p, double); // Beta from previous iteration
@@ -476,8 +488,10 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
   for ( int i = 0; i < n; i++) w[i]=0;
   double *eta = Calloc(n, double);
   for (int i = 0; i < n; i++) eta[i] = 0;
+  double *e = Calloc(n, double);
+  for (int i = 0; i < n; i++) e[i] = 0;
   double *wye = Calloc(n, double);
-  double xwr, xwx, shift, likli, s0, si;
+  double xwr, xwx, shift, likli, s0, si, l1, bhat;
   //int converged;
 
   //Pointers
@@ -485,113 +499,119 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
   double *t2 = REAL(t2_);
   double *wt = REAL(wt_);
   int *ici = INTEGER(ici_);
-  double lam = REAL(lambda_)[0];
+  double *lam = REAL(lambda_);
   double esp = REAL(esp_)[0];
   int max_iter = INTEGER(max_iter_)[0];
   double *m = REAL(beta0_);
-  double *e = REAL(eta_);
+  //double *e = REAL(eta_);
   //const char *penalty = CHAR(STRING_ELT(penalty_, 0));
   //end of declaration;
 
   //initialization
 
   //Initialize beta_0 = beta^(0)
-  //Initialize eta with beta_0
-  //for (int i = 0; i < n; i++) {
-  //  si = 0;
-  //  for (int j = 0; j < p; j++) {
-  //    si = a[j] * x[j * n + i];
-  //    eta[i] += si;
-  //  }
-  //}
 
+  //Initialize eta with beta_0
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < p; j++) {
+      e[i] += m[j] * x[j * n + i];
+    }
+  }
 
   nullDev = -2 * getLogLikelihood(t2, ici, x, p, n, wt, a); // Calculate null deviance at beta = 0
+  REAL(Dev)[0] = nullDev; //Store initial loglikelihood as first element in Dev
 
-  //for (int j = 0; j < p; j++) a[j] = b[j];
-  for (int j = 0; j < p; j++) a[j] = m[j];
-  for (int i = 0; i < n; i++) eta[i] = e[i];
+  //Outer loop for each lambda
+  for(int l = 0; l < L; l++) {
 
-  //Start algorithm here
-  while (INTEGER(iter)[0] < max_iter) {
-    if (REAL(Dev)[0] - nullDev > 0.99 * nullDev) break;
+    for (int j = 0; j < p; j++) a[j] = m[j];
+    for (int i = 0; i < n; i++) eta[i] = e[i];
 
-    INTEGER(iter)[0]++;
+    //Start algorithm here
+    while (INTEGER(iter)[l] < max_iter) {
 
-    //calculate score and w
-    likli = 0;
-    for (int i = 0; i < n; i++){
-      st[i] = 0;
-      w[i]= 0;
-    }
-    for (int i = 0; i < n; i++)
-    {
-      if (ici[i] != 1) continue;
-      likli += eta[i];
-      st[i] += 1;
+      if (REAL(Dev)[l + 1] - nullDev > 0.99 * nullDev) break;
 
-      // score
-      s0 = 0;
-      for (int j1 = 0; j1 < n; j1++)
-        wye[j1] = 0;
-      for (int k = 0; k < n; k++)
+      INTEGER(iter)[l]++;
+
+      //calculate score and w
+      likli = 0;
+      for (int i = 0; i < n; i++){
+        st[i] = 0;
+        w[i]= 0;
+      }
+      for (int i = 0; i < n; i++)
       {
-        if (t2[k] < t2[i] && ici[k] <= 1) continue;
+        if (ici[i] != 1) continue;
+        likli += eta[i];
+        st[i] += 1;
 
-        if (t2[k] >= t2[i])
-          wye[k] = exp(eta[k]);
-        else
-          wye[k] = exp(eta[k]) * wt[i] / wt[k];
-        s0 += wye[k];
-      }
-      for (int j2 = 0; j2 < n; j2++){
-        st[j2] += -wye[j2] / s0;
-        w[j2] += wye[j2] / s0 - pow(wye[j2], 2) / (s0 * s0);
-      }
-      likli -= log(s0);
-    }
+        // score
+        s0 = 0;
+        for (int j1 = 0; j1 < n; j1++)
+          wye[j1] = 0;
+        for (int k = 0; k < n; k++)
+        {
+          if (t2[k] < t2[i] && ici[k] <= 1) continue;
 
-    for ( int j3 = 0; j3 < n; j3++){
-      if (w[j3] == 0) r[j3] = 0;
-      else r[j3] = st[j3] / w[j3];
-    }
-
-    // calculate xwr and xwx & update beta_j
-    for (int j = 0; j < p; j++) {
-      if(a[j] == 0) b[j] = 0;
-      else {
-        xwr = wcrossprod(x, r, w, n, j); //  g_j
-        xwx = wsqsum(x, w, n, j); // h_j
-        //New beta_j update
-        b[j] = newBarL0(xwx / n, xwr / n, a[j], lam / n);
-      }
-      // Update r
-      shift = b[j] - a[j];
-      if (shift != 0) {
-        for (int i = 0; i < n; i++) {
-          si = shift * x[j * n + i];
-          r[i] -= si;
-          eta[i] += si;
+          if (t2[k] >= t2[i])
+            wye[k] = exp(eta[k]);
+          else
+            wye[k] = exp(eta[k]) * wt[i] / wt[k];
+          s0 += wye[k];
         }
-      } //end shift
+        for (int j2 = 0; j2 < n; j2++){
+          st[j2] += -wye[j2] / s0;
+          w[j2] += wye[j2] / s0 - pow(wye[j2], 2) / (s0 * s0);
+        }
+        likli -= log(s0);
+      }
 
-    } //for j = 0 to (p - 1)
-    // Check for convergence
-    INTEGER(converged)[0] = checkConvergence(b, a, esp, p);
-    for (int j = 0; j < p; j++)
-      a[j] = b[j];
+      for ( int j3 = 0; j3 < n; j3++){
+        if (w[j3] == 0) r[j3] = 0;
+        else r[j3] = st[j3] / w[j3];
+      }
 
-    //Calculate deviance
-    REAL(Dev)[0] = -2 * getLogLikelihood(t2, ici, x, p, n, wt, a);
+      // calculate xwr and xwx & update beta_j
+      for (int j = 0; j < p; j++) {
+        if(a[j] == 0) b[l * p + j] = 0;
+        else {
+          xwr = wcrossprod(x, r, w, n, j); //  g_j
+          xwx = wsqsum(x, w, n, j); // h_j
+          l1 = lam[l];
+          bhat = a[j];
+          //New beta_j update
+          b[l * p + j] = newBarL0(xwx / n, xwr / n, bhat, l1 / n);
+        }
+        // Update r
+        shift = b[l * p + j] - a[j];
+        if (shift != 0) {
+          for (int i = 0; i < n; i++) {
+            si = shift * x[j * n + i];
+            r[i] -= si;
+            eta[i] += si;
+          }
+        } //end shift
 
-    for (int i = 0; i < n; i++){
-      s[i] = st[i];
-      h[i] = w[i];
-    }
-    if (INTEGER(converged)[0])  break;
-    //for converge
-  } //for while loop
-  res = cleanupNewCRR(a, eta, wye, st, w, beta, Dev, iter, residuals, score, hessian, converged);
+      } // End cyclic coordinate descent
+      // Check for convergence
+      INTEGER(converged)[l] = checkFastBarConvergence(b, a, esp, l, p);
+      for (int j = 0; j < p; j++)
+        a[j] = b[l * p + j];
+
+      //Calculate deviance
+      REAL(Dev)[l + 1] = -2 * getLogLikelihood(t2, ici, x, p, n, wt, a);
+      for (int i = 0; i < n; i++){
+        s[l * n + i] = st[i];
+        h[l * n + i] = w[i];
+        lp[i] = eta[i];
+      }
+      if (INTEGER(converged)[l])  break;
+    } //BAR iterate for l^th lambda
+  } // Cycle through all lambda
+
+  res = cleanupNewCRR(a, e, eta, wye, st, w, beta, Dev, iter, residuals, score, hessian, linpred, converged);
   return(res);
 }
+
 

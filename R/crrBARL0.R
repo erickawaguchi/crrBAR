@@ -57,15 +57,6 @@ crrBARL0 <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   if(eps <= 0) stop("eps must be a positive number.")
   if(delta < 0) stop("d must be a non-negative number.")
 
-
-  # Function to calculate generalized inverse
-  ginv = function(X, tol = sqrt(.Machine$double.eps)){
-    s = svd(X)
-    nz = s$d > tol * s$d[1]
-    if(any(nz)) s$v[,nz] %*% (t(s$u[, nz]) / s$d[nz])
-    else X*0
-  }
-
   # Sort time
   n <- length(ftime)
   p <- ncol(X)
@@ -101,7 +92,7 @@ crrBARL0 <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
     lambda <- lambda
   }
   if(min(lambda) < 0) stop("lambda must be a non-negative number.")
-
+  nlam <- length(lambda)
 
   ## Fit the PSH Ridge Model here w/ tuning parameter xi
   ridgeFit   <- .Call("ccd_ridge", XX, as.numeric(ftime), as.integer(fstatus), uuu,
@@ -109,47 +100,32 @@ crrBARL0 <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
                       penalty.factor = rep(1, p), PACKAGE = "crrBAR")
   ridgeCoef  <- ridgeFit[[1]] / scale #Divide coeff estimates by sdev
   ridgeIter  <- ridgeFit[[3]]
-  ridge_eta  <- ridgeFit[[7]]
-  #Results to store:
-  coefMatrix           <- matrix(NA, nrow = p, ncol = length(lambda))
-  colnames(coefMatrix) <- round(lambda, 3)
-
-  scoreMatrix           <- matrix(NA, nrow = n, ncol = length(lambda))
-  colnames(scoreMatrix) <- round(lambda, 3)
-
-  hessMatrix           <- matrix(NA, nrow = n, ncol = length(lambda))
-  colnames(hessMatrix) <- round(lambda, 3)
-
-
-  logLik  <- numeric(length(lambda))
-  iter   <- numeric(length(lambda))
-  conv   <- logical(length(lambda))
 
   #Enter BAR Fit here (for different lambdas) keep everything in terms of standardized coefficients
   btmp <- ridgeFit[[1]]
-  for(l in 1:length(lambda)) {
-    lam  <- lambda[l]
-    barFit <- .Call("ccd_bar", XX, as.numeric(ftime), as.integer(fstatus), uuu,
-                      lam, eps, as.integer(max.iter),
-                      btmp, ridge_eta, PACKAGE = "crrBAR")
-    beta0 <- barFit[[1]]
+  barFit <- .Call("ccd_bar", XX, as.numeric(ftime), as.integer(fstatus), uuu,
+                      as.vector(lambda), as.double(eps), as.integer(max.iter),
+                      as.vector(btmp), PACKAGE = "crrBAR")
 
-    coefMatrix[, l]  <- beta0 / scale
-    #scoreMatrix[, l] <- barFit[[5]]
-    #hessMatrix[, l]  <- barFit[[6]]
-    logLik[l]        <- -barFit[[2]] / 2 #barFit[[2]] = deviance = -2 * ll
-    iter[l]          <- barFit[[3]]
-    conv[l]          <- barFit[[7]]
-  }
+  #Store results here
+  coefMatrix  <- matrix(barFit[[1]], p) / scale
+  logLik      <- as.double(barFit[[2]][-1] / -2)
+  logLik.null <- as.double(barFit[[2]][1] / -2)
+  iter        <- as.integer(barFit[[3]])
+  conv        <- as.integer(barFit[[8]])
+  #scoreMatrix[, l] <- barFit[[5]]
+  #hessMatrix[, l]  <- barFit[[6]]
 
   ## Output
+  colnames(coefMatrix) <- lambda
   val <- structure(list(coef = coefMatrix,
                         logLik = logLik,
+                        logLik.null = logLik.null,
                         iter = iter,
                         lambda = lambda,
                         converged = conv,
                         ridgeCoef = ridgeCoef,
-                        ridgeIter = ridgeIter,
+                        #ridgeIter = ridgeIter,
                         xi = xi,
                         call = sys.call()),
                    class = "crrBAR")
