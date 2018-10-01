@@ -108,7 +108,7 @@ crrBARL0 <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
                       as.vector(btmp), PACKAGE = "crrBAR")
 
   #Store results here
-  coefMatrix  <- matrix(barFit[[1]], p) / scale
+  coefMatrix  <- as.matrix(matrix(barFit[[1]], p)) / scale
   logLik      <- as.double(barFit[[2]][-1] / -2)
   logLik.null <- as.double(barFit[[2]][1] / -2)
   iter        <- as.integer(barFit[[3]])
