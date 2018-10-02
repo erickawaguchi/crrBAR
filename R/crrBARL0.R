@@ -55,8 +55,6 @@ crrBARL0 <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   if(xi < 0) stop("xi must be a non-negative number.")
   if(max.iter < 1) stop("max.iter must be positive integer.")
   if(eps <= 0) stop("eps must be a positive number.")
-  if(delta < 0) stop("d must be a non-negative number.")
-
   # Sort time
   n <- length(ftime)
   p <- ncol(X)
@@ -113,8 +111,8 @@ crrBARL0 <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   logLik.null <- as.double(barFit[[2]][1] / -2)
   iter        <- as.integer(barFit[[3]])
   conv        <- as.integer(barFit[[8]])
-  #scoreMatrix[, l] <- barFit[[5]]
-  #hessMatrix[, l]  <- barFit[[6]]
+  grad        <- as.matrix(barFit[[5]], n)
+  hess        <- as.matrix(barFit[[6]], n)
 
   ## Output
   colnames(coefMatrix) <- lambda

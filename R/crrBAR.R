@@ -117,10 +117,10 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   coefMatrix           <- matrix(NA, nrow = p, ncol = length(lambda))
   colnames(coefMatrix) <- round(lambda, 3)
 
-  scoreMatrix           <- matrix(NA, nrow = p, ncol = length(lambda))
+  scoreMatrix           <- matrix(NA, nrow = n, ncol = length(lambda))
   colnames(scoreMatrix) <- round(lambda, 3)
 
-  hessMatrix           <- matrix(NA, nrow = p, ncol = length(lambda))
+  hessMatrix           <- matrix(NA, nrow = n, ncol = length(lambda))
   colnames(hessMatrix) <- round(lambda, 3)
 
 

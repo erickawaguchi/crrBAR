@@ -199,7 +199,7 @@ double wsqsum(double *X, double *w, int n, int j) {
 
 
 ///////////////////////////////////////////////////////////////////////////////////////
-SEXP cleanupCRR(double *a, double *eta, double *wye, double *st, double *w, double *dd1, double *dd2,
+SEXP cleanupCRR(double *a, double *eta, double *wye, double *st, double *w,
                 SEXP beta, SEXP Dev, SEXP iter, SEXP residuals, SEXP score, SEXP hessian, SEXP linpred) {
   Free(a);
   Free(eta);
@@ -245,12 +245,12 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
   PROTECT(beta = allocVector(REALSXP, p));
   double *b = REAL(beta);
   for (int j = 0; j < p; j++) b[j] = 0;
-  PROTECT (score = allocVector(REALSXP, p));
+  PROTECT (score = allocVector(REALSXP, n));
   double *s = REAL(score);
-  for (int j = 0; j < p; j++) s[j] = 0;
-  PROTECT (hessian = allocVector(REALSXP, p));
+  for (int i = 0; i < n; i++) s[i] = 0;
+  PROTECT (hessian = allocVector(REALSXP, n));
   double *h = REAL(hessian);
-  for (int j = 0; j <  p; j++) h[j] = 0;
+  for (int i = 0; i < n; i++) h[i] = 0;
 
   PROTECT(residuals = allocVector(REALSXP, n));
   double *r = REAL(residuals);
@@ -266,13 +266,9 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
   double *a = Calloc(p, double); // Beta from previous iteration
   for (int j = 0; j < p; j++) a[j] = 0;
   double *st = Calloc(n, double);
-  for (int i = 0; i < n; i++) st[i]=0;
+  for (int i = 0; i < n; i++) st[i] = 0;
   double *w = Calloc(n, double);
-  for ( int i = 0; i < n; i++) w[i]=0;
-  double *dd1 = Calloc(p, double);
-  for (int j = 0; j < p; j++) dd1[p]=0;
-  double *dd2 = Calloc(p, double);
-  for ( int j = 0; j < p; j++) dd2[p]=0;
+  for ( int i = 0; i < n; i++) w[i] = 0;
   double *eta = Calloc(n, double);
   for (int i = 0; i < n; i++) eta[i] = 0;
   double *wye = Calloc(n, double);
@@ -352,8 +348,6 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
 
       //Do one dimensional ridge update.
       //b[j] = ridge(u, l1, v);
-      dd1[j] = xwr;
-      dd2[j] = xwx;
       b[j] = u / (v + l1);
 
       // Update r
@@ -377,16 +371,14 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
 
     for (int i = 0; i < n; i++){
       lp[i] = eta[i];
-    }
-    for(int j = 0; j < p; j++) {
-      s[j] = dd1[j];
-      h[j] = dd2[j];
+      s[i] = st[i];
+      h[i] = w[i];
     }
     if (converged)  break;
     //for converge
   } //for while loop
 
-  res = cleanupCRR(a, eta, wye, st, w, dd1, dd2, beta, Dev, iter, residuals, score, hessian, linpred);
+  res = cleanupCRR(a, eta, wye, st, w, beta, Dev, iter, residuals, score, hessian, linpred);
   return(res);
 }
 
@@ -479,7 +471,7 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
   double *lp = REAL(linpred);
   for (int i = 0; i <  n; i++) lp[i] = 0;
 
-  //Intermediate quantities for internal use
+  //Intermediate quantities for internal use (free this memory)
   double *a = Calloc(p, double); // Beta from previous iteration
   for (int j = 0; j < p; j++) a[j] = 0;
   double *st = Calloc(n, double);
