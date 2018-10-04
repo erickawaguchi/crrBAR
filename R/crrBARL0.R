@@ -115,10 +115,12 @@ crrBARL0 <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   hess        <- as.matrix(barFit[[6]], n)
 
   ## Output
-  colnames(coefMatrix) <- lambda
+  colnames(coefMatrix) <- round(lambda, 3)
   val <- structure(list(coef = coefMatrix,
                         logLik = logLik,
                         logLik.null = logLik.null,
+                        grad = grad,
+                        hess = hess,
                         iter = iter,
                         lambda = lambda,
                         converged = conv,

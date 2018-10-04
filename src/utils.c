@@ -27,7 +27,7 @@ void getScoreAndHessian(double *t2, int *ici, double *x, int *ncov, int *nin, do
   {
     if (ici[i] != 1) continue;
     likli += eta[i];
-    st[i]+=1;
+    st[i] += 1;
     // score
     s0 = 0;
     for (j = 0; j < n; j++)
@@ -425,7 +425,7 @@ double newBarL0(double h, double g, double b, double l) {
   tmp = h * b + g;
   if (tmp > 0) s = 1;
   else if (tmp < 0) s = -1;
-  if (pow(tmp, 2) < 4 * h * l) return(0);
+  if (fabs(tmp) < 2 * sqrt(h * l)) return(0);
   else return((tmp + s * sqrt(pow(tmp, 2) - 4 * l * h)) / (2 * h));
 }
 
@@ -605,5 +605,3 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
   res = cleanupNewCRR(a, e, eta, wye, st, w, beta, Dev, iter, residuals, score, hessian, linpred, converged);
   return(res);
 }
-
-
