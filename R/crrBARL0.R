@@ -82,12 +82,12 @@ crrBARL0 <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   nz <- which(scale > 1e-6)
   if (length(nz) != ncol(XX)) XX <- XX[ , nz, drop = FALSE]
 
-  # If lambda is MISSING, create lambda path
+  # If lambda is MISSING, create lambda path (be sure lambda is sorted)
   if(missing(lambda)) {
     lambda <- createLambdaGrid(ftime, fstatus, XX, uuu, lam.min = lam.min,
                                nlambda = nlambda, log = log)
   } else {
-    lambda <- lambda
+    if(is.unsorted(lambda)) sort(lambda)
   }
   if(min(lambda) < 0) stop("lambda must be a non-negative number.")
   nlam <- length(lambda)
@@ -95,7 +95,7 @@ crrBARL0 <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   ## Fit the PSH Ridge Model here w/ tuning parameter xi
   ridgeFit   <- .Call("ccd_ridge", XX, as.numeric(ftime), as.integer(fstatus), uuu,
                       xi, eps, as.integer(max.iter),
-                      penalty.factor = rep(1, p), PACKAGE = "crrBAR")
+                      penalty.factor = rep(1, p), d = 2, PACKAGE = "crrBAR")
   ridgeCoef  <- ridgeFit[[1]] / scale #Divide coeff estimates by sdev
   ridgeIter  <- ridgeFit[[3]]
 

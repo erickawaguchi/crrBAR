@@ -122,13 +122,12 @@ double getLogLikelihood(double *t2, int *ici, double *x, int ncov, int nin, doub
       zb = 0.0;
 
       for (j1 = 0; j1 < p; j1 ++)
-        zb += b[j1] *x[n * j1 + j];
+        zb += b[j1] * x[n * j1 + j];
 
       if (t2[j] >= t2[i])
         s0 += exp(zb);
       else
         s0 += exp(zb) * wt[i] / wt[j];
-
     }
 
     likli -= log(s0);
@@ -513,11 +512,12 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
   nullDev = -2 * getLogLikelihood(t2, ici, x, p, n, wt, a); // Calculate null deviance at beta = 0
   REAL(Dev)[0] = nullDev; //Store initial loglikelihood as first element in Dev
 
+  // Initialize a and eta using m and e. (Warm starts will be used afterwards)
+  for (int j = 0; j < p; j++) a[j] = m[j];
+  for (int i = 0; i < n; i++) eta[i] = e[i];
+
   //Outer loop for each lambda
   for(int l = 0; l < L; l++) {
-
-    for (int j = 0; j < p; j++) a[j] = m[j];
-    for (int i = 0; i < n; i++) eta[i] = e[i];
 
     //Start algorithm here
     while (INTEGER(iter)[l] < max_iter) {
@@ -586,10 +586,12 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
         } //end shift
 
       } // End cyclic coordinate descent
-      // Check for convergence
+
+      // Check for convergence (b = current est. a = old estimate)
       INTEGER(converged)[l] = checkFastBarConvergence(b, a, esp, l, p);
+
       for (int j = 0; j < p; j++)
-        a[j] = b[l * p + j];
+        a[j] = b[l * p + j]; //redefine old est as new est
 
       //Calculate deviance
       REAL(Dev)[l + 1] = -2 * getLogLikelihood(t2, ici, x, p, n, wt, a);

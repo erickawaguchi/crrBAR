@@ -101,7 +101,7 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
     lambda <- createLambdaGrid(ftime, fstatus, XX, uuu, lam.min = lam.min,
                           nlambda = nlambda, log = log)
   } else {
-    lambda <- lambda
+    if(is.unsorted(lambda)) sort(lambda)
   }
   if(min(lambda) < 0) stop("lambda must be a non-negative number.")
 
@@ -140,7 +140,6 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
                       lam, eps, as.integer(max.iter),
                       penalty.factor = 1 / bar_wt, PACKAGE = "crrBAR")
       beta0 <- barFit[[1]]
-      beta0 <- ifelse(abs(beta0) < tol, 0, beta0)
 
       #Convergence criterion: Max absolute difference between updates is less than eps.
       if(max(abs(beta0 - btmp)) < eps) {
@@ -150,9 +149,11 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
       }
       if(converged || count >= max.iter) continue <- FALSE
     }
+    beta0 <- ifelse(abs(beta0) < tol, 0, beta0)
+
     coefMatrix[, l]  <- beta0 / scale
-    scoreMatrix[, l] <- barFit[[5]]/ scale
-    hessMatrix[, l]  <- barFit[[6]] / scale
+    scoreMatrix[, l] <- barFit[[5]]
+    hessMatrix[, l]  <- barFit[[6]]
     logLik[l]      <- -barFit[[2]] / 2 #barFit[[2]] = deviance = -2 * ll
     iter[l]          <- count
     conv[l]          <- converged
