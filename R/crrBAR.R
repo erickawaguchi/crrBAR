@@ -140,6 +140,7 @@ crrBAR <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
                       lam, eps, as.integer(max.iter),
                       penalty.factor = 1 / bar_wt, PACKAGE = "crrBAR")
       beta0 <- barFit[[1]]
+      beta0 <- ifelse(abs(beta0) < tol, 0, beta0)
 
       #Convergence criterion: Max absolute difference between updates is less than eps.
       if(max(abs(beta0 - btmp)) < eps) {

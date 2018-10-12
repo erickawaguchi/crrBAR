@@ -579,13 +579,13 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
         shift = b[l * p + j] - a[j];
         if (shift != 0) {
           for (int i = 0; i < n; i++) {
-            si = shift * x[j * n + i];
+            si = shift * x[j * n + i]; //low-rank update of beta
             r[i] -= si;
             eta[i] += si;
           }
         } //end shift
 
-      } // End cyclic coordinate descent
+      } // End cyclic coordinate-wise optimization
 
       // Check for convergence (b = current est. a = old estimate)
       INTEGER(converged)[l] = checkFastBarConvergence(b, a, esp, l, p);
