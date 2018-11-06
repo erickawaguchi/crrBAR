@@ -92,6 +92,12 @@ crrBARL0 <- function(ftime, fstatus, X, failcode = 1, cencode = 0,
   if(min(lambda) < 0) stop("lambda must be a non-negative number.")
   nlam <- length(lambda)
 
+  ## Reorganize ftime, fstatus, and XX in decreasing order:
+  #XX      <- XX[order(ftime, decreasing = TRUE), ]
+  #ftime   <- rev(ftime)
+  #fstatus <- rev(fstatus)
+  #uuu     <- rev(uuu)
+
   ## Fit the PSH Ridge Model here w/ tuning parameter xi
   ridgeFit   <- .Call("ccd_ridge", XX, as.numeric(ftime), as.integer(fstatus), uuu,
                       xi, eps, as.integer(max.iter),
