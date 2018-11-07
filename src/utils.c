@@ -529,57 +529,55 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
 
       // calculate xwr and xwx & update beta_j
       for (int j = 0; j < p; j++) {
-        if(a[j] == 0) b[l * p + j] = 0;
 
-        else {
-          //Calculate the jth component of gradient and hessian (with previous values updated)
-          for (int i = 0; i < n; i++){
-            st[i] = 0;
-            w[i]= 0;
-          }
-          for (int i = 0; i < n; i++)
-          {
-            if (ici[i] != 1) continue;
-            likli += eta[i];
-            st[i] += 1;
-
-            // score
-            s0 = 0;
-            for (int j1 = 0; j1 < n; j1++)
-              wye[j1] = 0;
-            for (int k = 0; k < n; k++)
-            {
-              if (t2[k] < t2[i] && ici[k] <= 1) continue;
-
-              if (t2[k] >= t2[i])
-                wye[k] = exp(eta[k]);
-              else
-                wye[k] = exp(eta[k]) * wt[i] / wt[k];
-              s0 += wye[k];
-            }
-            for (int j2 = 0; j2 < n; j2++){
-              st[j2] += -wye[j2] / s0;
-              w[j2] += wye[j2] / s0 - pow(wye[j2], 2) / (s0 * s0);
-            }
-          }
-
-          for (int j3 = 0; j3 < n; j3++){
-            if (w[j3] == 0) r[j3] = 0;
-            else r[j3] = st[j3] / w[j3];
-          }
-
-          int nj = n * j;
-          double grad = 0;
-          for (int i = 0; i < n; i++) grad += x[nj + i] * st[i];
-
-          double hess = 0;
-          for (int i = 0; i < n; i++) hess += w[i] * pow(x[nj + i], 2);
-
-          l1 = lam[l];
-          bhat = a[j];
-          //New beta_j update
-          b[l * p + j] = newBarL0(hess / n, grad / n, bhat, l1 / n);
+        //Calculate the jth component of gradient and hessian (with previous values updated)
+        for (int i = 0; i < n; i++){
+          st[i] = 0;
+          w[i]= 0;
         }
+        for (int i = 0; i < n; i++)
+        {
+          if (ici[i] != 1) continue;
+          likli += eta[i];
+          st[i] += 1;
+
+          // score
+          s0 = 0;
+          for (int j1 = 0; j1 < n; j1++)
+            wye[j1] = 0;
+          for (int k = 0; k < n; k++)
+          {
+            if (t2[k] < t2[i] && ici[k] <= 1) continue;
+
+            if (t2[k] >= t2[i])
+              wye[k] = exp(eta[k]);
+            else
+              wye[k] = exp(eta[k]) * wt[i] / wt[k];
+            s0 += wye[k];
+          }
+          for (int j2 = 0; j2 < n; j2++){
+            st[j2] += -wye[j2] / s0;
+            w[j2] += wye[j2] / s0 - pow(wye[j2], 2) / (s0 * s0);
+          }
+        }
+
+        for (int j3 = 0; j3 < n; j3++){
+          if (w[j3] == 0) r[j3] = 0;
+          else r[j3] = st[j3] / w[j3];
+        }
+
+        int nj = n * j;
+        double grad = 0;
+        for (int i = 0; i < n; i++) grad += x[nj + i] * st[i];
+
+        double hess = 0;
+        for (int i = 0; i < n; i++) hess += w[i] * pow(x[nj + i], 2);
+
+        l1 = lam[l];
+        bhat = a[j];
+        //New beta_j update
+        b[l * p + j] = newBarL0(hess / n, grad / n, bhat, l1 / n);
+
         // Update r and eta
         shift = b[l * p + j] - a[j];
         if (shift != 0) {
@@ -617,7 +615,7 @@ SEXP ccd_bar(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
 
 ///////
 SEXP ccd_bar_alt(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
-             SEXP esp_, SEXP max_iter_, SEXP beta0_) {
+                 SEXP esp_, SEXP max_iter_, SEXP beta0_) {
 
   //Declaration
   int n = length(t2_);
@@ -744,15 +742,14 @@ SEXP ccd_bar_alt(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
 
       // calculate xwr and xwx & update beta_j
       for (int j = 0; j < p; j++) {
-        if(a[j] == 0) b[l * p + j] = 0;
-        else {
-          xwr = wcrossprod(x, r, w, n, j); //  g_j
-          xwx = wsqsum(x, w, n, j); // h_j
-          l1 = lam[l];
-          bhat = a[j];
-          //New beta_j update
-          b[l * p + j] = newBarL0(xwx / n, xwr / n, bhat, l1 / n);
-        }
+
+        xwr = wcrossprod(x, r, w, n, j); //  g_j
+        xwx = wsqsum(x, w, n, j); // h_j
+        l1 = lam[l];
+        bhat = a[j];
+        //New beta_j update
+        b[l * p + j] = newBarL0(xwx / n, xwr / n, bhat, l1 / n);
+
         // Update r
         shift = b[l * p + j] - a[j];
         if (shift != 0) {
