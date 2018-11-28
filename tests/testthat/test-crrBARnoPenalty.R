@@ -1,7 +1,7 @@
 library("testthat")
 library("cmprsk")
 
-test_that("crrBAR with no penalties gives same results as crr (small sample size)", {
+test_that("pshBAR with no penalties gives same results as crr (small sample size)", {
   set.seed(10)
   ftime   <- rexp(50)
   fstatus <- sample(0:2, 50, replace = TRUE)
@@ -13,7 +13,7 @@ test_that("crrBAR with no penalties gives same results as crr (small sample size
   expect_equal(as.vector(fit.crr$coef), as.vector(fit.crrBAR$coef), tolerance = 1E-6)
 })
 
-test_that("crrBAR with no penalties gives same results as crr (larger sample size)", {
+test_that("pshBAR with no penalties gives same results as crr (larger sample size)", {
   set.seed(10)
   ftime   <- rexp(200)
   fstatus <- sample(0:2, 200, replace = TRUE)
