@@ -269,7 +269,7 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
   double *lp = REAL(linpred);
   for (int i = 0; i <  n; i++) lp[i] = 0;
 
-  //Intermediate quantities for internal use
+  //Intermediate quantities for internal use (must be freed afterwards!)
   double *a = Calloc(p, double); // Beta from previous iteration
   for (int j = 0; j < p; j++) a[j] = 0;
   double *st = Calloc(n, double);
