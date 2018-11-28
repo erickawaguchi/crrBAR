@@ -1,7 +1,7 @@
 Package: crrBAR
 Type: Package
 Title: Broken Adaptive Ridge for Competing Risks Regression
-Version: 0.1.0
+Version: 1.0.0
 Author: Eric S. Kawaguchi
 Maintainer: Eric S. Kawaguchi <erickawaguchi@ucla.edu>
 Description: More about what it does (maybe more than one line)

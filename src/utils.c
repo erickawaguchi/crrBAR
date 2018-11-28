@@ -8,6 +8,13 @@
 #include <stdlib.h>
 #define LEN sizeof(double)
 
+double sgn(double z) {
+  double s = 0;
+  if (z > 0) s = 1;
+  else if (z < 0) s = -1;
+  return(s);
+}
+
 void getScoreAndHessian(double *t2, int *ici, double *x, int *ncov, int *nin, double *wt, double *eta, double *st, double *w, double *lik)
 {
   const int np = ncov[0], n = nin[0];
@@ -198,13 +205,14 @@ double wsqsum(double *X, double *w, int n, int j) {
 
 
 ///////////////////////////////////////////////////////////////////////////////////////
-SEXP cleanupCRR(double *a, double *eta, double *wye, double *st, double *w,
+SEXP cleanupCRR(double *a, double *eta, double *wye, double *st, double *w, double *diffBeta,
                 SEXP beta, SEXP Dev, SEXP iter, SEXP residuals, SEXP score, SEXP hessian, SEXP linpred) {
   Free(a);
   Free(eta);
   Free(wye);
   Free(st);
   Free(w);
+  Free(diffBeta);
   SEXP res;
   PROTECT(res = allocVector(VECSXP, 7));
   SET_VECTOR_ELT(res, 0, beta); //coefficient estimates
@@ -270,8 +278,10 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
   for ( int i = 0; i < n; i++) w[i] = 0;
   double *eta = Calloc(n, double);
   for (int i = 0; i < n; i++) eta[i] = 0;
+  double *diffBeta = Calloc(p, double);
+  for (int j = 0; j < p; j++) diffBeta[j] = 1;
   double *wye = Calloc(n, double);
-  double xwr, xwx, u, v, l1, shift, likli, s0, si;
+  double xwr, xwx, l1, shift, likli, s0, si, delta;
   int converged;
 
   //Pointers
@@ -337,18 +347,20 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
 
     // calculate xwr and xwx & update beta_j
     for (int j = 0; j < p; j++) {
-      xwr = wcrossprod(x, r, w, n, j); // jth component of gradient [l'(b)]
+      xwr = -wcrossprod(x, r, w, n, j); // jth component of gradient [l'(b)]
       xwx = wsqsum(x, w, n, j); // jth component of hessian [l''(b)]
-      u   = xwr / n + (xwx / n) * a[j]; // z in paper
-      v   = xwx / n;
+      l1 = lam * m[j] / n; //divide by n since we are minimizing the following: -(1/n)l(beta) + lambda * p(beta)
+      delta =  -(xwr / n + a[j] * l1) / (xwx / n + l1);
+
+      //u   = xwr / n + (xwx / n) * a[j]; // z in paper
+      //v   = xwx / n;
 
       // Update b_j
-      l1 = lam * m[j] / n; //divide by n since we are minimizing the following: -(1/n)l(beta) + lambda * p(beta)
 
-      //Do one dimensional ridge update.
-      b[j] = u / (v + l1);
-      //b[j] = a[j] + (xwr / n - a[j] * l1) / (xwx / n + l1);
-
+      // Do one dimensional ridge update.
+      // Employ trust region as in Genkin et al. (2007) for quadratic approximation.
+      b[j] = a[j] + sgn(delta) * fmin(fabs(delta), diffBeta[j]);
+      diffBeta[j] = fmax(2 * fabs(delta), diffBeta[j] / 2);
 
       // Update r
       shift = b[j] - a[j];
@@ -378,7 +390,7 @@ SEXP ccd_ridge(SEXP x_, SEXP t2_, SEXP ici_, SEXP wt_, SEXP lambda_,
     //for converge
   } //for while loop
 
-  res = cleanupCRR(a, eta, wye, st, w, beta, Dev, iter, residuals, score, hessian, linpred);
+  res = cleanupCRR(a, eta, wye, st, w, diffBeta, beta, Dev, iter, residuals, score, hessian, linpred);
   return(res);
 }
 
